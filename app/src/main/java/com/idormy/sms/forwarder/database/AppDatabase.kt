@@ -7,15 +7,28 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import com.idormy.sms.forwarder.database.dao.*
-import com.idormy.sms.forwarder.database.entity.*
+import com.idormy.sms.forwarder.database.dao.FrpcDao
+import com.idormy.sms.forwarder.database.dao.LogsDao
+import com.idormy.sms.forwarder.database.dao.MsgDao
+import com.idormy.sms.forwarder.database.dao.RuleDao
+import com.idormy.sms.forwarder.database.dao.SenderDao
+import com.idormy.sms.forwarder.database.dao.TaskDao
+import com.idormy.sms.forwarder.database.entity.Frpc
+import com.idormy.sms.forwarder.database.entity.Logs
+import com.idormy.sms.forwarder.database.entity.LogsDetail
+import com.idormy.sms.forwarder.database.entity.Msg
+import com.idormy.sms.forwarder.database.entity.Rule
+import com.idormy.sms.forwarder.database.entity.Sender
+import com.idormy.sms.forwarder.database.entity.Task
 import com.idormy.sms.forwarder.database.ext.ConvertersDate
 import com.idormy.sms.forwarder.utils.DATABASE_NAME
+import com.idormy.sms.forwarder.utils.SettingUtils
+import com.idormy.sms.forwarder.utils.TAG_LIST
 
 @Database(
-    entities = [Frpc::class, Msg::class, Logs::class, Rule::class, Sender::class],
+    entities = [Frpc::class, Msg::class, Logs::class, Rule::class, Sender::class, Task::class],
     views = [LogsDetail::class],
-    version = 15,
+    version = 20,
     exportSchema = false
 )
 @TypeConverters(ConvertersDate::class)
@@ -26,6 +39,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun logsDao(): LogsDao
     abstract fun ruleDao(): RuleDao
     abstract fun senderDao(): SenderDao
+    abstract fun taskDao(): TaskDao
 
     companion object {
         @Volatile
@@ -39,11 +53,8 @@ abstract class AppDatabase : RoomDatabase() {
 
         private fun buildDatabase(context: Context): AppDatabase {
             val builder = Room.databaseBuilder(
-                context.applicationContext,
-                AppDatabase::class.java,
-                DATABASE_NAME
-            )
-                .allowMainThreadQueries() //TODO:允许主线程访问，后面再优化
+                context.applicationContext, AppDatabase::class.java, DATABASE_NAME
+            ).allowMainThreadQueries() //TODO:允许主线程访问，后面再优化
                 .addCallback(object : Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         //fillInDb(context.applicationContext)
@@ -66,7 +77,7 @@ login_fail_exit = false
 type = tcp
 local_ip = 127.0.0.1
 local_port = 5000
-#只要修改下面这一行
+#只要修改下面这一行（frps所在服务器必须暴露的公网端口）
 remote_port = 5000
 
 #[二选一即可]每台机器不可重复，通过 http://smsf.demo.com 访问
@@ -74,14 +85,13 @@ remote_port = 5000
 type = http
 local_ip = 127.0.0.1
 local_port = 5000
-#只要修改下面这一行
+#只要修改下面这一行（在frps端将域名反代到vhost_http_port）
 custom_domains = smsf.demo.com
 ', 0, '1651334400000')
 """.trimIndent()
                         )
                     }
-                })
-                .addMigrations(
+                }).addMigrations(
                     MIGRATION_1_2,
                     MIGRATION_2_3,
                     MIGRATION_3_4,
@@ -96,6 +106,11 @@ custom_domains = smsf.demo.com
                     MIGRATION_12_13,
                     MIGRATION_13_14,
                     MIGRATION_14_15,
+                    MIGRATION_15_16,
+                    MIGRATION_16_17,
+                    MIGRATION_17_18,
+                    MIGRATION_18_19,
+                    MIGRATION_19_20,
                 )
 
             /*if (BuildConfig.DEBUG) {
@@ -183,33 +198,38 @@ CREATE TABLE "Frpc" (
                 )
                 database.execSQL(
                     """
-INSERT INTO "Frpc" VALUES ('830b0a0e-c2b3-4f95-b3c9-55db12923d2e', '远程控制SmsForwarder', '[common]
+INSERT INTO "Frpc" VALUES ('830b0a0e-c2b3-4f95-b3c9-55db12923d2e', '远程控制SmsForwarder', '
 #frps服务端公网IP
-server_addr = 88.88.88.88
+serverAddr = "88.88.88.88"
 #frps服务端公网端口
-server_port = 8888
-#可选，建议启用
-token = 88888888
+serverPort = 8888
 #连接服务端的超时时间（增大时间避免frpc在网络未就绪的情况下启动失败）
-dial_server_timeout = 60
+transport.dialServerTimeout = 60
 #第一次登陆失败后是否退出
-login_fail_exit = false
+loginFailExit = false
+#可选，建议启用
+auth.method = "token"
+auth.token = "88888888"
 
-#[二选一即可]每台机器不可重复，通过 http://88.88.88.88:5000 访问
-[SmsForwarder-TCP]
-type = tcp
-local_ip = 127.0.0.1
-local_port = 5000
-#只要修改下面这一行
-remote_port = 5000
+#[二选一即可]每台机器的 name 和 remotePort 不可重复，通过 http://88.88.88.88:5000 访问
+[[proxies]]
+#同一个frps下，多台设备的 name 不可重复
+name = "SmsForwarder-TCP-001"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 5000
+#只要修改下面这一行（frps所在服务器必须暴露且防火墙放行的公网端口，同一个frps下不可重复）
+remotePort = 5000
 
-#[二选一即可]每台机器不可重复，通过 http://smsf.demo.com 访问
-[SmsForwarder-HTTP]
-type = http
-local_ip = 127.0.0.1
-local_port = 5000
-#只要修改下面这一行
-custom_domains = smsf.demo.com
+#[二选一即可]每台机器的 name 和 customDomains 不可重复，通过 http://smsf.demo.com 访问
+[[proxies]]
+#同一个frps下，多台设备的 name 不可重复
+name = "SmsForwarder-HTTP-001"
+type = "http"
+localPort = 5000
+#只要修改下面这一行（在frps端将域名反代到vhost_http_port）
+customDomains = ["smsf.demo.com"]
+
 ', 0, '1651334400000')
 """.trimIndent()
                 )
@@ -361,6 +381,82 @@ CREATE TABLE "Logs" (
             override fun migrate(database: SupportSQLiteDatabase) {
                 // 这里新建一个视图（视图名称要用两个半角的间隔号括起来）
                 database.execSQL("CREATE VIEW `LogsDetail` AS SELECT LOGS.id,LOGS.type,LOGS.msg_id,LOGS.rule_id,LOGS.sender_id,LOGS.forward_status,LOGS.forward_response,LOGS.TIME,Rule.filed AS rule_filed,Rule.`check` AS rule_check,Rule.value AS rule_value,Rule.sim_slot AS rule_sim_slot,Sender.type AS sender_type,Sender.NAME AS sender_name FROM LOGS  LEFT JOIN Rule ON LOGS.rule_id = Rule.id LEFT JOIN Sender ON LOGS.sender_id = Sender.id")
+            }
+        }
+
+        //免打扰(禁用转发)时间段
+        private val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("Alter table rule add column silent_period_start INTEGER NOT NULL DEFAULT 0 ")
+                database.execSQL("Alter table rule add column silent_period_end INTEGER NOT NULL DEFAULT 0 ")
+            }
+        }
+
+        //通话类型：1.来电挂机 2.去电挂机 3.未接来电 4.来电提醒 5.来电接通 6.去电拨出
+        private val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("Alter table Msg add column call_type INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        //自动化任务
+        private val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    """
+CREATE TABLE "Task" (
+  "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "type" INTEGER NOT NULL DEFAULT 1,
+  "name" TEXT NOT NULL DEFAULT '',
+  "description" TEXT NOT NULL DEFAULT '',
+  "conditions" TEXT NOT NULL DEFAULT '',
+  "actions" TEXT NOT NULL DEFAULT '',
+  "last_exec_time" INTEGER NOT NULL,
+  "next_exec_time" INTEGER NOT NULL,
+  "status" INTEGER NOT NULL DEFAULT 1
+)
+""".trimIndent()
+                )
+            }
+        }
+
+        //自定义模板可用变量统一成英文标签
+        private val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                //替换自定义模板标签
+                var smsTemplate = SettingUtils.smsTemplate
+                //替换Rule.sms_template中的标签
+                var ruleColumnCN = "sms_template"
+                var ruleColumnTW = "sms_template"
+                //替换Sender.json_setting中的标签
+                var senderColumnCN = "json_setting"
+                var senderColumnTW = "json_setting"
+
+                for (i in TAG_LIST.indices) {
+                    val tagCN = TAG_LIST[i]["zh_CN"].toString()
+                    val tagTW = TAG_LIST[i]["zh_TW"].toString()
+                    val tagEN = TAG_LIST[i]["en"].toString()
+                    smsTemplate = smsTemplate.replace(tagCN, tagEN)
+                    ruleColumnCN = "REPLACE($ruleColumnCN, '$tagCN', '$tagEN')"
+                    ruleColumnTW = "REPLACE($ruleColumnTW, '$tagTW', '$tagEN')"
+                    senderColumnCN = "REPLACE($senderColumnCN, '$tagCN', '$tagEN')"
+                    senderColumnTW = "REPLACE($senderColumnTW, '$tagTW', '$tagEN')"
+                }
+
+                database.execSQL("UPDATE Rule SET sms_template = $ruleColumnCN WHERE sms_template != ''")
+                database.execSQL("UPDATE Rule SET sms_template = $ruleColumnTW WHERE sms_template != ''")
+
+                database.execSQL("UPDATE Sender SET json_setting = $senderColumnCN WHERE type NOT IN (4, 5, 6, 7, 8, 14)")
+                database.execSQL("UPDATE Sender SET json_setting = $senderColumnTW WHERE type NOT IN (4, 5, 6, 7, 8, 14)")
+
+                SettingUtils.smsTemplate = smsTemplate
+            }
+        }
+
+        //免打扰星期段
+        private val MIGRATION_19_20 = object : Migration(19, 20) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("Alter table rule add column silent_day_of_week TEXT NOT NULL DEFAULT '' ")
             }
         }
 

@@ -20,7 +20,7 @@
             android:orientation="vertical">
 
             <LinearLayout
-                style="@style/senderBarStyleWithSwitch"
+                style="@style/BarStyle.Switch"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal">
@@ -50,7 +50,7 @@
             </LinearLayout>
 
             <LinearLayout
-                style="@style/senderBarStyle"
+                style="@style/BarStyle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal">
@@ -63,39 +63,32 @@
 
                 <RadioGroup
                     android:id="@+id/rg_method"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    style="@style/rg_style"
                     android:layout_marginStart="5dp"
                     android:orientation="horizontal">
 
                     <RadioButton
                         android:id="@+id/rb_method_mqtt"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
+                        style="@style/rg_rb_style"
                         android:checked="true"
-                        android:text="@string/mqtt"
-                        android:textSize="14sp" />
+                        android:text="@string/mqtt" />
 
                     <RadioButton
                         android:id="@+id/rb_method_tcp"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/tcp"
-                        android:textSize="14sp" />
+                        style="@style/rg_rb_style"
+                        android:text="@string/tcp" />
 
                     <RadioButton
                         android:id="@+id/rb_method_udp"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/udp"
-                        android:textSize="14sp" />
+                        style="@style/rg_rb_style"
+                        android:text="@string/udp" />
 
                 </RadioGroup>
 
             </LinearLayout>
 
             <LinearLayout
-                style="@style/senderBarStyle"
+                style="@style/BarStyle"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:orientation="horizontal">
@@ -137,7 +130,7 @@
             </LinearLayout>
 
             <LinearLayout
-                style="@style/senderBarStyle"
+                style="@style/BarStyle"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:orientation="horizontal">
@@ -178,7 +171,7 @@
             </LinearLayout>
 
             <LinearLayout
-                style="@style/senderBarStyle"
+                style="@style/BarStyle"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:orientation="horizontal">
@@ -217,7 +210,7 @@
             </LinearLayout>
 
             <LinearLayout
-                style="@style/senderBarStyle"
+                style="@style/BarStyle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
@@ -232,7 +225,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/webhook_params_tips"
-                    android:textSize="10sp"
+                    android:textSize="@dimen/text_size_mini"
                     tools:ignore="SmallSp" />
 
                 <com.xuexiang.xui.widget.edittext.materialedittext.MaterialEditText
@@ -246,7 +239,7 @@
             </LinearLayout>
 
             <LinearLayout
-                style="@style/senderBarStyle"
+                style="@style/BarStyle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
@@ -268,13 +261,35 @@
             </LinearLayout>
 
             <LinearLayout
+                style="@style/BarStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/webhook_response2"
+                    android:textStyle="bold" />
+
+                <com.xuexiang.xui.widget.edittext.materialedittext.MaterialEditText
+                    android:id="@+id/et_Response"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/optional"
+                    android:singleLine="true"
+                    app:met_clearButton="true" />
+
+            </LinearLayout>
+
+            <LinearLayout
                 android:id="@+id/layout_mqtt"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
                 <LinearLayout
-                    style="@style/senderBarStyle"
+                    style="@style/BarStyle"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:orientation="horizontal">
@@ -298,7 +313,7 @@
                 </LinearLayout>
 
                 <LinearLayout
-                    style="@style/senderBarStyle"
+                    style="@style/BarStyle"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:orientation="horizontal">
@@ -322,7 +337,7 @@
                 </LinearLayout>
 
                 <LinearLayout
-                    style="@style/senderBarStyle"
+                    style="@style/BarStyle"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:orientation="horizontal">
@@ -333,20 +348,29 @@
                         android:text="@string/uri_type"
                         android:textStyle="bold" />
 
-                    <com.xuexiang.xui.widget.edittext.materialedittext.MaterialEditText
-                        android:id="@+id/et_uriType"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
+                    <RadioGroup
+                        android:id="@+id/rg_uriType"
+                        style="@style/rg_style"
                         android:layout_marginStart="5dp"
-                        android:layout_weight="1"
-                        android:hint="@string/uri_type_hint"
-                        android:singleLine="true"
-                        app:met_clearButton="true" />
+                        android:orientation="horizontal">
+
+                        <RadioButton
+                            android:id="@+id/rb_uriType_tcp"
+                            style="@style/rg_rb_style"
+                            android:checked="true"
+                            android:text="@string/tcp" />
+
+                        <RadioButton
+                            android:id="@+id/rb_uriType_ssl"
+                            style="@style/rg_rb_style"
+                            android:text="@string/ssl" />
+
+                    </RadioGroup>
 
                 </LinearLayout>
 
                 <LinearLayout
-                    style="@style/senderBarStyle"
+                    style="@style/BarStyle"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:orientation="horizontal">
@@ -370,7 +394,7 @@
                 </LinearLayout>
 
                 <LinearLayout
-                    style="@style/senderBarStyle"
+                    style="@style/BarStyle"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal">
@@ -408,32 +432,24 @@
 
         <com.xuexiang.xui.widget.textview.supertextview.SuperButton
             android:id="@+id/btn_del"
-            style="@style/SuperButton.Gray.Icon"
-            android:drawableStart="@drawable/icon_delete"
-            android:paddingStart="15dp"
+            style="@style/SuperButton.Gray.Icon.Spacing"
+            android:drawableStart="@drawable/ic_delete"
             android:text="@string/del"
-            android:textSize="11sp"
-            tools:ignore="RtlSymmetry" />
+            tools:ignore="RtlSymmetry,TextContrastCheck,TouchTargetSizeCheck" />
 
         <com.xuexiang.xui.widget.textview.supertextview.SuperButton
             android:id="@+id/btn_save"
-            style="@style/SuperButton.Blue.Icon"
-            android:layout_marginStart="10dp"
-            android:drawableStart="@drawable/icon_save"
-            android:paddingStart="15dp"
+            style="@style/SuperButton.Blue.Icon.Spacing"
+            android:drawableStart="@drawable/ic_save"
             android:text="@string/save"
-            android:textSize="11sp"
-            tools:ignore="RtlSymmetry" />
+            tools:ignore="RtlSymmetry,TextContrastCheck,TouchTargetSizeCheck" />
 
         <com.xuexiang.xui.widget.textview.supertextview.SuperButton
             android:id="@+id/btn_test"
-            style="@style/SuperButton.Green.Icon"
-            android:layout_marginStart="10dp"
-            android:drawableStart="@drawable/icon_test"
-            android:paddingStart="15dp"
+            style="@style/SuperButton.Green.Icon.Spacing"
+            android:drawableStart="@drawable/ic_test"
             android:text="@string/test"
-            android:textSize="11sp"
-            tools:ignore="RtlSymmetry" />
+            tools:ignore="RtlSymmetry,TextContrastCheck,TouchTargetSizeCheck" />
 
     </LinearLayout>
 

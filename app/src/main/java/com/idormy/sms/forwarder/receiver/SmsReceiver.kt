@@ -4,35 +4,28 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
-import android.util.Log
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.google.gson.Gson
 import com.idormy.sms.forwarder.App
-import com.idormy.sms.forwarder.database.AppDatabase
 import com.idormy.sms.forwarder.entity.MsgInfo
-import com.idormy.sms.forwarder.service.HttpService
+import com.idormy.sms.forwarder.utils.Log
 import com.idormy.sms.forwarder.utils.PhoneUtils
 import com.idormy.sms.forwarder.utils.SettingUtils
+import com.idormy.sms.forwarder.utils.SmsCommandUtils
 import com.idormy.sms.forwarder.utils.Worker
 import com.idormy.sms.forwarder.workers.SendWorker
 import com.xuexiang.xrouter.utils.TextUtils
-import com.xuexiang.xutil.file.FileUtils
-import com.xuexiang.xutil.system.DeviceUtils
-import frpclib.Frpclib
-import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
-import java.util.*
+import java.util.Date
 
 //短信广播
-@OptIn(DelicateCoroutinesApi::class)
-@Suppress("PrivatePropertyName", "DeferredResultUnused", "SENSELESS_COMPARISON")
+@Suppress("PrivatePropertyName", "UNUSED_PARAMETER")
 class SmsReceiver : BroadcastReceiver() {
 
-    private var TAG = "SmsReceiver"
+    private var TAG = SmsReceiver::class.java.simpleName
+    private var from = ""
+    private var msg = ""
 
     override fun onReceive(context: Context, intent: Intent) {
         try {
@@ -40,19 +33,38 @@ class SmsReceiver : BroadcastReceiver() {
             if (SettingUtils.enablePureClientMode) return
 
             //过滤广播
-            if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION && intent.action != Telephony.Sms.Intents.SMS_DELIVER_ACTION) return
+            if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION
+                && intent.action != Telephony.Sms.Intents.SMS_DELIVER_ACTION
+                && intent.action != Telephony.Sms.Intents.WAP_PUSH_RECEIVED_ACTION
+                && intent.action != Telephony.Sms.Intents.WAP_PUSH_DELIVER_ACTION
+            ) return
 
-            var from = ""
-            var message = ""
-            for (smsMessage in Telephony.Sms.Intents.getMessagesFromIntent(intent)) {
-                from = smsMessage.displayOriginatingAddress
-                message += smsMessage.messageBody
+            if (intent.action == Telephony.Sms.Intents.WAP_PUSH_RECEIVED_ACTION || intent.action == Telephony.Sms.Intents.WAP_PUSH_DELIVER_ACTION) {
+                val contentType = intent.type
+                if (contentType == "application/vnd.wap.mms-message") {
+                    val pduType = intent.getStringExtra("transactionId")
+                    if ("mms" == pduType) {
+                        val data = intent.getByteArrayExtra("data")
+                        if (data != null) {
+                            // 处理收到的 MMS 数据
+                            handleMmsData(context, data)
+                        }
+                    }
+                }
+
+                from = intent.getStringExtra("address") ?: ""
+                Log.d(TAG, "from = $from, msg = $msg")
+            } else {
+                for (smsMessage in Telephony.Sms.Intents.getMessagesFromIntent(intent)) {
+                    from = smsMessage.displayOriginatingAddress
+                    msg += smsMessage.messageBody
+                }
             }
-            Log.d(TAG, "from = $from, message = $message")
+            Log.d(TAG, "from = $from, msg = $msg")
 
             //短信指令
-            if (SettingUtils.enableSmsCommand && message.startsWith("smsf#")) {
-                doSmsCommand(context, from, message)
+            if (SettingUtils.enableSmsCommand && msg.startsWith("smsf#")) {
+                doSmsCommand(context, from, msg)
                 return
             }
 
@@ -94,12 +106,12 @@ class SmsReceiver : BroadcastReceiver() {
                 else -> ""
             }
 
-            val msgInfo = MsgInfo("sms", from, message, Date(), simInfo, simSlot, subscription)
+            val msgInfo = MsgInfo("sms", from, msg, Date(), simInfo, simSlot, subscription)
             Log.d(TAG, "msgInfo = $msgInfo")
 
             val request = OneTimeWorkRequestBuilder<SendWorker>().setInputData(
                 workDataOf(
-                    Worker.sendMsgInfo to Gson().toJson(msgInfo)
+                    Worker.SEND_MSG_INFO to Gson().toJson(msgInfo)
                 )
             ).build()
             WorkManager.getInstance(context).enqueue(request)
@@ -130,87 +142,58 @@ class SmsReceiver : BroadcastReceiver() {
         }
 
         val smsCommand = message.substring(5)
-        val cmdList = smsCommand.split("#")
-        Log.d(TAG, "smsCommand = $smsCommand, cmdList = $cmdList")
-        if (cmdList.count() < 2) return
+        SmsCommandUtils.execute(context, smsCommand)
+    }
 
-        val function = cmdList[0]
-        val action = cmdList[1]
-        val param = if (cmdList.count() > 2) cmdList[2] else ""
-        when (function) {
-            "frpc" -> {
-                if (!FileUtils.isFileExists(context.filesDir?.absolutePath + "/libs/libgojni.so")) {
-                    Log.d(TAG, "还未下载Frpc库")
-                    return
-                }
+    private fun handleMmsData(context: Context, data: ByteArray) {
+        try {
+            val mmsClass = Class.forName("android.telephony.gsm.SmsMessage")
+            val method = mmsClass.getDeclaredMethod("createFromPdu", ByteArray::class.java)
+            val pdus = arrayOf(data)
+            val messages = mutableListOf<Any>()
 
-                if (TextUtils.isEmpty(param)) {
-                    GlobalScope.async(Dispatchers.IO) {
-                        val frpcList = AppDatabase.getInstance(App.context).frpcDao().getAutorun()
+            for (pdu in pdus) {
+                val message = method.invoke(null, pdu)
+                message?.let { messages.add(it) }
+            }
 
-                        if (frpcList.isEmpty()) {
-                            Log.d(TAG, "没有自启动的Frpc")
-                            return@async
-                        }
+            // 处理 MMS 中的各个部分
+            for (message in messages) {
+                // 获取 MMS 的各个部分
+                val parts = message.javaClass.getMethod("getParts").invoke(message) as? Array<*>
 
-                        for (frpc in frpcList) {
-                            if (action == "start") {
-                                if (!Frpclib.isRunning(frpc.uid)) {
-                                    val error = Frpclib.runContent(frpc.uid, frpc.config)
-                                    if (!TextUtils.isEmpty(error)) {
-                                        Log.e(TAG, error)
-                                    }
-                                }
-                            } else if (action == "stop") {
-                                if (Frpclib.isRunning(frpc.uid)) {
-                                    Frpclib.close(frpc.uid)
-                                }
-                            }
+                // 遍历 MMS 的各个部分
+                parts?.forEach { part ->
+                    // 获取部分的内容类型
+                    val contentType = part?.javaClass?.getMethod("getContentType")?.invoke(part) as? String
+
+                    // 处理文本部分
+                    if (contentType?.startsWith("text/plain") == true) {
+                        val text = part.javaClass.getMethod("getData").invoke(part) as? String
+                        // 处理文本信息
+                        if (text != null) {
+                            Log.d(TAG, "Text: $text")
+                            msg += text
                         }
                     }
-                } else {
-                    GlobalScope.async(Dispatchers.IO) {
-                        val frpc = AppDatabase.getInstance(App.context).frpcDao().getOne(param)
 
-                        if (frpc == null) {
-                            Log.d(TAG, "没有找到指定的Frpc")
-                            return@async
-                        }
-
-                        if (action == "start") {
-                            if (!Frpclib.isRunning(frpc.uid)) {
-                                val error = Frpclib.runContent(frpc.uid, frpc.config)
-                                if (!TextUtils.isEmpty(error)) {
-                                    Log.e(TAG, error)
-                                }
-                            }
-                        } else if (action == "stop") {
-                            if (Frpclib.isRunning(frpc.uid)) {
-                                Frpclib.close(frpc.uid)
-                            }
+                    // 处理图像部分
+                    if (contentType?.startsWith("image/") == true) {
+                        val imageData = part.javaClass.getMethod("getData").invoke(part) as? ByteArray
+                        // 处理图像信息
+                        if (imageData != null) {
+                            // 在这里你可以保存图像数据或进行其他处理
+                            Log.d(TAG, "Image data received")
                         }
                     }
-                }
-            }
-            "httpserver" -> {
-                Intent(context, HttpService::class.java).also {
-                    if (action == "start") {
-                        context.startService(it)
-                    } else if (action == "stop") {
-                        context.stopService(it)
-                    }
-                }
-            }
-            "system" -> {
-                //判断是否已root
-                if (!DeviceUtils.isDeviceRooted()) return
 
-                if (action == "reboot") {
-                    DeviceUtils.reboot()
-                } else if (action == "shutdown") {
-                    DeviceUtils.shutdown()
+                    // 其他部分的处理可以根据需要继续扩展
                 }
             }
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Log.e(TAG, "handleMmsData: $e")
         }
     }
 

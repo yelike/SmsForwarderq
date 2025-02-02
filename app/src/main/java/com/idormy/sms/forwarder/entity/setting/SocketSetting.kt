@@ -4,11 +4,12 @@ import com.idormy.sms.forwarder.R
 import java.io.Serializable
 
 data class SocketSetting(
-    val method: String? = "MQTT",
+    val method: String = "MQTT",
     var address: String = "", //IP地址
     val port: Int = 0, //端口号
     val msgTemplate: String = "", //消息模板
-    val secret: String? = "", //签名密钥
+    val secret: String = "", //签名密钥
+    val response: String = "", //成功应答关键字
     val username: String = "", //用户名
     val password: String = "", //密码
     val inCharset: String = "", //输入编码
@@ -22,10 +23,17 @@ data class SocketSetting(
 
     fun getMethodCheckId(): Int {
         return when (method) {
-            null, "MQTT" -> R.id.rb_method_mqtt
+            "MQTT" -> R.id.rb_method_mqtt
             "TCP" -> R.id.rb_method_tcp
             "UDP" -> R.id.rb_method_udp
             else -> R.id.rb_method_mqtt
+        }
+    }
+
+    fun getUriTypeCheckId(): Int {
+        return when (uriType) {
+            "ssl" -> R.id.rb_uriType_ssl
+            else -> R.id.rb_uriType_tcp
         }
     }
 

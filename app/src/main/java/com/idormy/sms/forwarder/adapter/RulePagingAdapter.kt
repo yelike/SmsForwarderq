@@ -16,6 +16,7 @@ import com.idormy.sms.forwarder.adapter.RulePagingAdapter.MyViewHolder
 import com.idormy.sms.forwarder.database.entity.Rule
 import com.idormy.sms.forwarder.databinding.AdapterRulesCardViewListItemBinding
 
+@Suppress("EmptyMethod")
 class RulePagingAdapter(private val itemClickListener: OnItemClickListener) : PagingDataAdapter<Rule, MyViewHolder>(diffCallback) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MyViewHolder {
@@ -28,7 +29,7 @@ class RulePagingAdapter(private val itemClickListener: OnItemClickListener) : Pa
         if (item != null) {
             holder.binding.ivRuleImage.setImageResource(item.imageId)
             holder.binding.ivRuleStatus.setImageResource(item.statusImageId)
-            holder.binding.tvRuleMatch.text = item.ruleMatch
+            holder.binding.tvRuleMatch.text = item.getName(false)
 
             holder.binding.layoutSenders.removeAllViews()
             for (sender in item.senderList) {
@@ -42,9 +43,6 @@ class RulePagingAdapter(private val itemClickListener: OnItemClickListener) : Pa
                 holder.binding.layoutSenders.addView(layoutSenderItem)
             }
 
-            holder.binding.ivCopy.setImageResource(R.drawable.ic_copy)
-            holder.binding.ivEdit.setImageResource(R.drawable.ic_edit)
-            holder.binding.ivDelete.setImageResource(R.drawable.ic_delete)
             holder.binding.ivCopy.setOnClickListener { view: View? ->
                 itemClickListener.onItemClicked(view, item)
             }

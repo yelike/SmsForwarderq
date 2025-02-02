@@ -3,15 +3,13 @@ package com.idormy.sms.forwarder.utils
 
 import android.text.TextUtils
 import android.util.Base64
-import android.util.Log
 import com.google.gson.Gson
 import com.idormy.sms.forwarder.R
 import com.idormy.sms.forwarder.core.Core
 import com.idormy.sms.forwarder.entity.CloneInfo
 import com.idormy.sms.forwarder.entity.LocationInfo
 import com.idormy.sms.forwarder.server.model.BaseRequest
-import com.xuexiang.xui.utils.ResUtils.getString
-import com.xuexiang.xutil.app.AppUtils
+import com.xuexiang.xutil.resource.ResUtils.getString
 import com.yanzhenjie.andserver.error.HttpException
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
@@ -145,24 +143,31 @@ class HttpServerUtils private constructor() {
             cloneInfo.versionCode = AppUtils.getAppVersionCode()
             cloneInfo.versionName = AppUtils.getAppVersionName()
             cloneInfo.settings = SharedPreference.exportPreference()
-            cloneInfo.senderList = Core.sender.all
-            cloneInfo.ruleList = Core.rule.all
-            cloneInfo.frpcList = Core.frpc.all
+            cloneInfo.senderList = Core.sender.getAllNonCache()
+            cloneInfo.ruleList = Core.rule.getAllNonCache()
+            cloneInfo.frpcList = Core.frpc.getAllNonCache()
+            cloneInfo.taskList = Core.task.getAllNonCache()
             return cloneInfo
         }
 
         //还原设置
         fun restoreSettings(cloneInfo: CloneInfo): Boolean {
             return try {
+                //保留设备名称、SIM卡主键/备注
+                val extraDeviceMark = SettingUtils.extraDeviceMark
+                val subidSim1 = SettingUtils.subidSim1
+                val extraSim1 = SettingUtils.extraSim1
+                val subidSim2 = SettingUtils.subidSim2
+                val extraSim2 = SettingUtils.extraSim2
                 //应用配置
                 SharedPreference.clearPreference()
                 SharedPreference.importPreference(cloneInfo.settings)
                 //需要排除的配置
-                SettingUtils.extraDeviceMark = ""
-                SettingUtils.subidSim1 = 0
-                SettingUtils.extraSim1 = ""
-                SettingUtils.subidSim2 = 0
-                SettingUtils.extraSim2 = ""
+                SettingUtils.extraDeviceMark = extraDeviceMark
+                SettingUtils.subidSim1 = subidSim1
+                SettingUtils.extraSim1 = extraSim1
+                SettingUtils.subidSim2 = subidSim2
+                SettingUtils.extraSim2 = extraSim2
                 //删除消息与转发日志
                 Core.logs.deleteAll()
                 Core.msg.deleteAll()
@@ -187,9 +192,17 @@ class HttpServerUtils private constructor() {
                         Core.frpc.insert(frpc)
                     }
                 }
+                //Task配置
+                Core.task.deleteAll()
+                if (!cloneInfo.taskList.isNullOrEmpty()) {
+                    for (task in cloneInfo.taskList!!) {
+                        Core.task.insert(task)
+                    }
+                }
                 true
             } catch (e: Exception) {
                 e.printStackTrace()
+                Log.e("restoreSettings", e.message.toString())
                 throw HttpException(500, e.message)
                 //false
             }
